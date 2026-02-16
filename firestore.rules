@@ -8,10 +8,13 @@ service cloud.firestore {
     }
     
     // Helper function to check if user is post/comment author
+    // Uses UserId field for secure authorship verification
     function isAuthor(resource) {
       return isSignedIn() && (
-        resource.data.Email == request.auth.token.email ||
-        resource.data.Username == request.auth.token.email.split('@')[0]
+        // Primary check: UserId matches authenticated user's uid
+        resource.data.UserId == request.auth.uid ||
+        // Fallback for legacy posts without UserId: check email
+        (resource.data.UserId == null && resource.data.Email == request.auth.token.email)
       );
     }
     

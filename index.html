@@ -2637,12 +2637,31 @@
         
         // Initialize auth state listener
         if (auth && firebaseModules) {
-            firebaseModules.onAuthStateChanged(auth, (user) => {
+            firebaseModules.onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                    // User is signed in
-                    localStorage.setItem('currentUser', user.displayName || user.email.split('@')[0]);
-                    localStorage.setItem('userEmail', user.email);
-                    localStorage.setItem('userId', user.uid);
+                    // User is signed in - fetch username from Firestore
+                    try {
+                        const userDocRef = firebaseModules.doc(db, 'users', user.uid);
+                        const userDocSnap = await firebaseModules.getDoc(userDocRef);
+                        
+                        if (userDocSnap.exists()) {
+                            const userData = userDocSnap.data();
+                            localStorage.setItem('currentUser', userData.username);
+                            localStorage.setItem('userEmail', user.email || userData.email);
+                            localStorage.setItem('userId', user.uid);
+                        } else {
+                            // Fallback if user document doesn't exist
+                            localStorage.setItem('currentUser', user.email ? user.email.split('@')[0] : 'משתמש');
+                            localStorage.setItem('userEmail', user.email || '');
+                            localStorage.setItem('userId', user.uid);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching user data:', error);
+                        // Fallback on error
+                        localStorage.setItem('currentUser', user.email ? user.email.split('@')[0] : 'משתמש');
+                        localStorage.setItem('userEmail', user.email || '');
+                        localStorage.setItem('userId', user.uid);
+                    }
                     updateUserDisplay();
                 } else {
                     // User is signed out - but keep local storage for guests
@@ -2748,7 +2767,27 @@
                 updateUserDisplay();
                 closeRegisterModal();
             } else {
-                showToast('משתמש לא נמצא במערכת');
+                // User authenticated but no Firestore document - try to recover
+                console.warn('User authenticated but no Firestore document found. Creating document...');
+                try {
+                    // Create user document with default username
+                    const username = email.split('@')[0];
+                    const userDocRef = firebaseModules.doc(db, 'users', user.uid);
+                    await firebaseModules.setDoc(userDocRef, {
+                        username: username,
+                        email: email,
+                        createdAt: firebaseModules.Timestamp.now()
+                    });
+                    localStorage.setItem('currentUser', username);
+                    localStorage.setItem('userEmail', email);
+                    localStorage.setItem('userId', user.uid);
+                    showToast('התחברת בהצלחה!');
+                    updateUserDisplay();
+                    closeRegisterModal();
+                } catch (docError) {
+                    console.error('Error creating user document:', docError);
+                    showToast('שגיאה: לא נמצא פרופיל משתמש. אנא צור קשר עם התמיכה.');
+                }
             }
         } catch (error) {
             console.error('Login error:', error);
@@ -3451,6 +3490,7 @@
         
         const currentUser = localStorage.getItem('currentUser');
         const userEmail = localStorage.getItem('userEmail') || '';
+        const userId = localStorage.getItem('userId') || null; // Get userId for auth checking
         const nameFromInput = document.getElementById('name').value;
         const userName = currentUser || nameFromInput;
         
@@ -3463,6 +3503,7 @@
             name: userName,  // Keep for backward compatibility
             username: userName,  // New field as per requirements
             email: userEmail,  // Include email for auto-reply
+            userId: userId,  // Include userId for security
             category: document.getElementById('category').value,
             subject: document.getElementById('subject').value,
             content: document.getElementById('content').value
@@ -3490,6 +3531,7 @@
                 Name: payload.name,
                 Username: payload.username,
                 Email: payload.email,
+                UserId: payload.userId, // Store userId for security checking
                 Category: payload.category,
                 Subject: payload.subject,
                 Content: payload.content,
@@ -3516,6 +3558,7 @@
         
         const currentUser = localStorage.getItem('currentUser');
         const userEmail = localStorage.getItem('userEmail') || '';
+        const userId = localStorage.getItem('userId') || null;
         const inputField = document.getElementById(`rep-in-${parentId}`);
         const content = inputField.value;
         if (!content) return;
@@ -3543,6 +3586,7 @@
                 Name: name,
                 Username: name,
                 Email: userEmail,
+                UserId: userId,
                 Content: content,
                 parentId: parentId,
                 Timestamp: firebaseModules.Timestamp.now(),
@@ -3613,6 +3657,7 @@
         
         const currentUser = localStorage.getItem('currentUser');
         const userEmail = localStorage.getItem('userEmail') || '';
+        const userId = localStorage.getItem('userId') || null;
         const inputField = document.getElementById(`nested-rep-in-${parentId}-${idx}`);
         const content = inputField.value;
         if (!content) return;
@@ -3641,6 +3686,7 @@
                 Name: name,
                 Username: name,
                 Email: userEmail,
+                UserId: userId,
                 Content: fullContent,
                 parentId: parentId,
                 Timestamp: firebaseModules.Timestamp.now(),

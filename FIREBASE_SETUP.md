@@ -135,6 +135,7 @@ const firebaseConfig = {
    - `Name`: שם המשתמש
    - `Username`: שם המשתמש (זהה ל-Name)
    - `Email`: אימייל המשתמש
+   - `UserId`: uid של המשתמש מ-Firebase Auth (לאימות אבטחה)
    - `Category`: קטגוריה (רק להודעות ראשיות)
    - `Subject`: נושא (רק להודעות ראשיות)
    - `Content`: תוכן ההודעה/תגובה
@@ -286,6 +287,7 @@ To enable efficient queries, create an index:
    - `Name`: User name
    - `Username`: Username (same as Name)
    - `Email`: User email
+   - `UserId`: User's uid from Firebase Auth (for security verification)
    - `Category`: Category (main posts only)
    - `Subject`: Subject (main posts only)
    - `Content`: Post/reply content
