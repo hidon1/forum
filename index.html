@@ -20,7 +20,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-        import { getFirestore, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, increment, Timestamp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, where, doc, updateDoc, deleteDoc, increment, Timestamp, setDoc, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
         import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
         
         // Firebase configuration - REPLACE WITH YOUR ACTUAL FIREBASE CONFIG
@@ -54,6 +54,8 @@
             deleteDoc,
             increment,
             Timestamp,
+            setDoc,
+            getDoc,
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             onAuthStateChanged,
@@ -2733,13 +2735,12 @@
             const userCredential = await firebaseModules.signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
             
-            // Get user data from Firestore
-            const usersRef = firebaseModules.collection(db, 'users');
-            const q = firebaseModules.query(usersRef, firebaseModules.where('email', '==', email));
-            const querySnapshot = await firebaseModules.getDocs(q);
+            // Get user data from Firestore using uid as document ID
+            const userDocRef = firebaseModules.doc(db, 'users', user.uid);
+            const userDocSnap = await firebaseModules.getDoc(userDocRef);
             
-            if (!querySnapshot.empty) {
-                const userData = querySnapshot.docs[0].data();
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data();
                 localStorage.setItem('currentUser', userData.username);
                 localStorage.setItem('userEmail', email);
                 localStorage.setItem('userId', user.uid);
@@ -2788,10 +2789,9 @@
             const userCredential = await firebaseModules.createUserWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
             
-            // Store additional user data in Firestore
-            const usersRef = firebaseModules.collection(db, 'users');
-            await firebaseModules.addDoc(usersRef, {
-                uid: user.uid,
+            // Store additional user data in Firestore using uid as document ID
+            const userDocRef = firebaseModules.doc(db, 'users', user.uid);
+            await firebaseModules.setDoc(userDocRef, {
                 username: username,
                 email: email,
                 createdAt: firebaseModules.Timestamp.now()

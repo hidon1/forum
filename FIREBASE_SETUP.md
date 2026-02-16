@@ -27,33 +27,48 @@
 
 ### שלב 4: הגדרת כללי אבטחה ל-Firestore
 
-ב-Firestore Database, עבור ל-"Rules" והחלף את הכללים בקוד הבא:
+ב-Firestore Database, עבור ל-"Rules" והחלף את הכללים בקוד הבא (או העתק מהקובץ `firestore.rules`):
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - only authenticated users can read/write their own data
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAuthor(resource) {
+      return isSignedIn() && (
+        resource.data.Email == request.auth.token.email ||
+        resource.data.Username == request.auth.token.email.split('@')[0]
+      );
+    }
+    
+    // Users collection - document ID must match user UID
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
     }
     
-    // Posts collection - anyone can read, authenticated users can write
+    // Posts collection
     match /posts/{postId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null && 
-        (resource.data.Username == request.auth.token.email.split('@')[0] ||
-         resource.data.Email == request.auth.token.email);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['Likes']) &&
+         request.resource.data.Likes > resource.data.Likes) ||
+        isAuthor(resource)
+      );
+      allow delete: if isAuthor(resource);
     }
     
-    // Contacts collection - anyone can write, admins can read
+    // Contacts collection
     match /contacts/{contactId} {
-      allow read: if false; // Only through admin console
+      allow read: if false;
       allow create: if true;
+      allow update, delete: if false;
     }
   }
 }
@@ -110,12 +125,13 @@ const firebaseConfig = {
 #### Collections:
 
 1. **users** - מידע על משתמשים רשומים
-   - `uid`: מזהה ייחודי מ-Firebase Auth
+   - **Document ID**: uid מ-Firebase Auth (חשוב!)
    - `username`: שם המשתמש
    - `email`: כתובת האימייל
    - `createdAt`: תאריך יצירת החשבון
 
 2. **posts** - הודעות ותגובות בפורום
+   - **Document ID**: נוצר אוטומטית
    - `Name`: שם המשתמש
    - `Username`: שם המשתמש (זהה ל-Name)
    - `Email`: אימייל המשתמש
@@ -127,6 +143,7 @@ const firebaseConfig = {
    - `parentId`: מזהה ההודעה האב (null להודעות ראשיות)
 
 3. **contacts** - הודעות יצירת קשר
+   - **Document ID**: נוצר אוטומטית
    - `name`: שם השולח
    - `email`: אימייל השולח
    - `message`: תוכן ההודעה
@@ -161,33 +178,48 @@ const firebaseConfig = {
 
 ### Step 4: Configure Firestore Security Rules
 
-In Firestore Database, go to "Rules" and replace with:
+In Firestore Database, go to "Rules" and replace with (or copy from `firestore.rules` file):
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - only authenticated users can read/write their own data
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isAuthor(resource) {
+      return isSignedIn() && (
+        resource.data.Email == request.auth.token.email ||
+        resource.data.Username == request.auth.token.email.split('@')[0]
+      );
+    }
+    
+    // Users collection - document ID must match user UID
     match /users/{userId} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update, delete: if isSignedIn() && request.auth.uid == userId;
     }
     
-    // Posts collection - anyone can read, authenticated users can write
+    // Posts collection
     match /posts/{postId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update: if request.auth != null;
-      allow delete: if request.auth != null && 
-        (resource.data.Username == request.auth.token.email.split('@')[0] ||
-         resource.data.Email == request.auth.token.email);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['Likes']) &&
+         request.resource.data.Likes > resource.data.Likes) ||
+        isAuthor(resource)
+      );
+      allow delete: if isAuthor(resource);
     }
     
-    // Contacts collection - anyone can write, admins can read
+    // Contacts collection
     match /contacts/{contactId} {
-      allow read: if false; // Only through admin console
+      allow read: if false;
       allow create: if true;
+      allow update, delete: if false;
     }
   }
 }
@@ -244,12 +276,13 @@ To enable efficient queries, create an index:
 #### Collections:
 
 1. **users** - Registered user information
-   - `uid`: Unique ID from Firebase Auth
+   - **Document ID**: uid from Firebase Auth (important!)
    - `username`: Username
    - `email`: Email address
    - `createdAt`: Account creation date
 
 2. **posts** - Forum posts and replies
+   - **Document ID**: Auto-generated
    - `Name`: User name
    - `Username`: Username (same as Name)
    - `Email`: User email
@@ -261,6 +294,7 @@ To enable efficient queries, create an index:
    - `parentId`: Parent post ID (null for main posts)
 
 3. **contacts** - Contact form messages
+   - **Document ID**: Auto-generated
    - `name`: Sender name
    - `email`: Sender email
    - `message`: Message content
