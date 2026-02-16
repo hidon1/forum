@@ -1809,7 +1809,7 @@
             background: var(--bg);
             margin-bottom: 8px;
             border-radius: 8px;
-            border-right: 4px solid var(--accent);
+            border-left: 4px solid var(--accent);
         }
 
         .recipe-instructions-list li {
@@ -3602,6 +3602,12 @@
     }
 
     function render(category) {
+        // Check if this is the recipes category and handle it separately
+        if (category === 'מתכונים') {
+            renderRecipes();
+            return;
+        }
+        
         const container = document.getElementById('posts-container');
         container.innerHTML = '';
         
@@ -4032,8 +4038,11 @@
         const currentUser = localStorage.getItem('currentUser');
         const userEmail = localStorage.getItem('userEmail');
         if (currentUser) {
-            document.getElementById('recipeUsername').value = currentUser;
-            document.getElementById('recipeUsername').readOnly = true;
+            const usernameField = document.getElementById('recipeUsername');
+            usernameField.value = currentUser;
+            usernameField.readOnly = true;
+            usernameField.style.backgroundColor = 'var(--info)';
+            usernameField.style.cursor = 'not-allowed';
         }
         if (userEmail) {
             document.getElementById('recipeEmail').value = userEmail;
@@ -4047,8 +4056,11 @@
     }
 
     function resetRecipeForm() {
-        document.getElementById('recipeUsername').value = '';
-        document.getElementById('recipeUsername').readOnly = false;
+        const usernameField = document.getElementById('recipeUsername');
+        usernameField.value = '';
+        usernameField.readOnly = false;
+        usernameField.style.backgroundColor = '';
+        usernameField.style.cursor = '';
         document.getElementById('recipeEmail').value = '';
         document.getElementById('recipeMainTitle').value = '';
         document.getElementById('recipeSubTitle').value = '';
@@ -4339,16 +4351,6 @@
             showToast('שגיאה בשליחת הלייק. נסה שנית.');
         }
     }
-
-    // Modify the render function to handle recipes
-    const originalRender = render;
-    render = function(category) {
-        if (category === 'מתכונים') {
-            renderRecipes();
-        } else {
-            originalRender(category);
-        }
-    };
 
     // Load saved theme and sidebar state
     document.addEventListener('DOMContentLoaded', () => {

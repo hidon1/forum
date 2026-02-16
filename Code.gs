@@ -216,7 +216,7 @@ function getRecipesSheet() {
   
   if (!sheet) {
     sheet = ss.insertSheet(RECIPES_SHEET_NAME);
-    sheet.appendRow([
+    const headers = [
       'id',
       'mainTitle',
       'subTitle',
@@ -228,10 +228,11 @@ function getRecipesSheet() {
       'email',
       'date',
       'likes'
-    ]);
+    ];
+    sheet.appendRow(headers);
     
     // Format header row
-    const headerRange = sheet.getRange(1, 1, 1, 11);
+    const headerRange = sheet.getRange(1, 1, 1, headers.length);
     headerRange.setFontWeight('bold');
     headerRange.setBackground('#4db8d9');
     headerRange.setFontColor('#ffffff');
