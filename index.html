@@ -2359,6 +2359,7 @@
                             </div>
                         </div>
                     </div>
+                    <div id="recommendedUserRecipes"></div>
                 </div>
             </div>
         </div>
@@ -4029,6 +4030,7 @@
     let allRecipes = [];
     let ingredientIndex = 1;
     let instructionIndex = 1;
+    let isSubmittingRecipe = false;
 
     function openRecipePanel() {
         document.getElementById('recipePanel').classList.add('open');
@@ -4139,6 +4141,12 @@
     }
 
     async function submitRecipe() {
+        if (isSubmittingRecipe) {
+            return;
+        }
+
+        const submitBtn = document.querySelector('.recipe-submit-btn');
+
         // Get form values
         const username = document.getElementById('recipeUsername').value.trim();
         const email = document.getElementById('recipeEmail').value.trim();
@@ -4210,6 +4218,12 @@
             instructions: JSON.stringify(instructions)
         };
 
+        isSubmittingRecipe = true;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
+        closeRecipePanel();
+
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
@@ -4223,7 +4237,6 @@
 
             if (result.status === 'success' || result.success) {
                 showToast('המתכון נוסף בהצלחה!');
-                closeRecipePanel();
                 // Reload recipes
                 await loadRecipes();
             } else {
@@ -4232,13 +4245,85 @@
         } catch (error) {
             console.error('Error submitting recipe:', error);
             showToast('שגיאה בשליחת המתכון. נסה שנית.');
+        } finally {
+            isSubmittingRecipe = false;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+            }
         }
+    }
+
+    function renderRecommendedRecipes() {
+        const recommendedContainer = document.getElementById('recommendedUserRecipes');
+        if (!recommendedContainer) return;
+
+        if (!allRecipes || allRecipes.length === 0) {
+            recommendedContainer.innerHTML = '';
+            return;
+        }
+
+        const sortedRecipes = [...allRecipes]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 8);
+
+        recommendedContainer.innerHTML = `
+            <div class="recipe-section" style="margin-top: 18px;">
+                <h5 style="margin-bottom: 12px; color: var(--accent);">מתכונים מהקהילה</h5>
+                ${sortedRecipes.map(recipe => {
+                    let ingredients = [];
+                    let instructions = [];
+
+                    try {
+                        ingredients = JSON.parse(recipe.ingredientsJson || '[]');
+                    } catch (e) {
+                        ingredients = [];
+                    }
+
+                    try {
+                        instructions = JSON.parse(recipe.instructionsJson || '[]');
+                    } catch (e) {
+                        instructions = [];
+                    }
+
+                    return `
+                        <div class="recipe-card" onclick="toggleRecipe(this)">
+                            <div class="recipe-header">
+                                <div class="recipe-icon">
+                                    <i class="fas fa-utensils"></i>
+                                </div>
+                                <h4>${recipe.mainTitle || ''}</h4>
+                            </div>
+                            <div class="recipe-meta">
+                                <span><i class="fas fa-clock"></i> ${recipe.prepTime || '-'}</span>
+                                <span><i class="fas fa-users"></i> ${recipe.servings || '-'}</span>
+                            </div>
+                            <p class="recipe-desc">${recipe.subTitle || ''}</p>
+                            <div class="recipe-details">
+                                <div class="recipe-section">
+                                    <h5><i class="fas fa-list"></i> מרכיבים</h5>
+                                    <ul>
+                                        ${ingredients.length > 0 ? ingredients.map(ing => `<li>${ing.name || ''} ${ing.amount ? '- ' + ing.amount : ''} ${ing.unit || ''}</li>`).join('') : '<li>לא נוספו מרכיבים</li>'}
+                                    </ul>
+                                </div>
+                                <div class="recipe-section">
+                                    <h5><i class="fas fa-tasks"></i> אופן ההכנה</h5>
+                                    <ol>
+                                        ${instructions.length > 0 ? instructions.map(step => `<li>${step}</li>`).join('') : '<li>לא נוספו שלבים</li>'}
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
     }
 
     async function loadRecipes() {
         try {
             const res = await fetch(SCRIPT_URL + '?action=recipeList');
             allRecipes = await res.json();
+            renderRecommendedRecipes();
             renderRecipes();
         } catch (error) {
             console.error('Error loading recipes:', error);
