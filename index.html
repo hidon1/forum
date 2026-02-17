@@ -2359,6 +2359,7 @@
                             </div>
                         </div>
                     </div>
+                    <div id="recommendedUserRecipes"></div>
                 </div>
             </div>
         </div>
@@ -4029,6 +4030,7 @@
     let allRecipes = [];
     let ingredientIndex = 1;
     let instructionIndex = 1;
+    let isSubmittingRecipe = false;
 
     function openRecipePanel() {
         document.getElementById('recipePanel').classList.add('open');
@@ -4139,6 +4141,12 @@
     }
 
     async function submitRecipe() {
+        if (isSubmittingRecipe) {
+            return;
+        }
+
+        const submitBtn = document.querySelector('.recipe-submit-btn');
+
         // Get form values
         const username = document.getElementById('recipeUsername').value.trim();
         const email = document.getElementById('recipeEmail').value.trim();
@@ -4210,6 +4218,12 @@
             instructions: JSON.stringify(instructions)
         };
 
+        isSubmittingRecipe = true;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+        }
+        closeRecipePanel();
+
         try {
             const response = await fetch(SCRIPT_URL, {
                 method: 'POST',
@@ -4223,7 +4237,6 @@
 
             if (result.status === 'success' || result.success) {
                 showToast('המתכון נוסף בהצלחה!');
-                closeRecipePanel();
                 // Reload recipes
                 await loadRecipes();
             } else {
@@ -4232,13 +4245,53 @@
         } catch (error) {
             console.error('Error submitting recipe:', error);
             showToast('שגיאה בשליחת המתכון. נסה שנית.');
+        } finally {
+            isSubmittingRecipe = false;
+            if (submitBtn) {
+                submitBtn.disabled = false;
+            }
         }
+    }
+
+    function renderRecommendedRecipes() {
+        const recommendedContainer = document.getElementById('recommendedUserRecipes');
+        if (!recommendedContainer) return;
+
+        if (!allRecipes || allRecipes.length === 0) {
+            recommendedContainer.innerHTML = '';
+            return;
+        }
+
+        const sortedRecipes = [...allRecipes]
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+            .slice(0, 8);
+
+        recommendedContainer.innerHTML = `
+            <div class="recipe-section" style="margin-top: 18px;">
+                <h5 style="margin-bottom: 12px; color: var(--accent);">מתכונים מהקהילה</h5>
+                ${sortedRecipes.map(recipe => `
+                    <div class="recipe-card" style="cursor: default;">
+                        <div class="recipe-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+                            <div>
+                                <h4 style="margin-bottom: 4px;">${recipe.mainTitle || ''}</h4>
+                                <p class="recipe-desc" style="margin: 0;">${recipe.subTitle || ''}</p>
+                            </div>
+                            <div class="recipe-meta" style="display: flex; flex-direction: column; gap: 6px; margin: 0; text-align: right; white-space: nowrap;">
+                                <span><i class="fas fa-clock"></i> ${recipe.prepTime || '-'}</span>
+                                <span><i class="fas fa-users"></i> ${recipe.servings || '-'}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
     }
 
     async function loadRecipes() {
         try {
             const res = await fetch(SCRIPT_URL + '?action=recipeList');
             allRecipes = await res.json();
+            renderRecommendedRecipes();
             renderRecipes();
         } catch (error) {
             console.error('Error loading recipes:', error);
