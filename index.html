@@ -4270,7 +4270,7 @@
             <div class="recipe-section" style="margin-top: 18px;">
                 <h5 style="margin-bottom: 12px; color: var(--accent);">מתכונים מהקהילה</h5>
                 ${sortedRecipes.map(recipe => `
-                    <div class="recipe-card" style="cursor: default;">
+                    <div class="recipe-card" onclick="toggleRecipe(this)">
                         <div class="recipe-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
                             <div>
                                 <h4 style="margin-bottom: 4px;">${recipe.mainTitle || ''}</h4>
@@ -4279,6 +4279,32 @@
                             <div class="recipe-meta" style="display: flex; flex-direction: column; gap: 6px; margin: 0; text-align: right; white-space: nowrap;">
                                 <span><i class="fas fa-clock"></i> ${recipe.prepTime || '-'}</span>
                                 <span><i class="fas fa-users"></i> ${recipe.servings || '-'}</span>
+                            </div>
+                        </div>
+                        <div class="recipe-details">
+                            <div class="recipe-section">
+                                <h5><i class="fas fa-list"></i> מרכיבים</h5>
+                                <ul>
+                                    ${(() => {
+                                        const ingredients = JSON.parse(recipe.ingredientsJson || '[]');
+                                        if (!ingredients.length) {
+                                            return '<li>לא הוזנו מרכיבים</li>';
+                                        }
+                                        return ingredients.map(ing => `<li>${ing.name || ''} ${ing.amount ? '- ' + ing.amount : ''} ${ing.unit || ''}</li>`).join('');
+                                    })()}
+                                </ul>
+                            </div>
+                            <div class="recipe-section">
+                                <h5><i class="fas fa-tasks"></i> אופן ההכנה</h5>
+                                <ol>
+                                    ${(() => {
+                                        const instructions = JSON.parse(recipe.instructionsJson || '[]');
+                                        if (!instructions.length) {
+                                            return '<li>לא הוזן אופן הכנה</li>';
+                                        }
+                                        return instructions.map(inst => `<li>${inst}</li>`).join('');
+                                    })()}
+                                </ol>
                             </div>
                         </div>
                     </div>
