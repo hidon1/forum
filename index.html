@@ -4031,6 +4031,68 @@
     let ingredientIndex = 1;
     let instructionIndex = 1;
     let isSubmittingRecipe = false;
+    const LOCAL_RECIPES_KEY = 'localRecipes';
+
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function parseJsonArray(value) {
+        try {
+            const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function getLocalRecipes() {
+        return parseJsonArray(localStorage.getItem(LOCAL_RECIPES_KEY));
+    }
+
+    function saveLocalRecipes(recipes) {
+        localStorage.setItem(LOCAL_RECIPES_KEY, JSON.stringify(recipes));
+    }
+
+    function normalizeRecipe(rawRecipe) {
+        if (!rawRecipe) return null;
+        const ingredients = parseJsonArray(rawRecipe.ingredientsJson || rawRecipe.ingredients);
+        const instructions = parseJsonArray(rawRecipe.instructionsJson || rawRecipe.instructions);
+        const comments = parseJsonArray(rawRecipe.commentsJson || rawRecipe.comments);
+        const id = rawRecipe.id || rawRecipe.ID || `recipe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        return {
+            ...rawRecipe,
+            id,
+            username: rawRecipe.username || rawRecipe.Name || 'משתמש',
+            date: rawRecipe.date || rawRecipe.Timestamp || new Date().toISOString(),
+            prepTime: rawRecipe.prepTime || '-',
+            servings: rawRecipe.servings || '-',
+            likes: Number(rawRecipe.likes || rawRecipe.Likes || 0),
+            ingredientsJson: JSON.stringify(ingredients),
+            instructionsJson: JSON.stringify(instructions),
+            commentsJson: JSON.stringify(comments)
+        };
+    }
+
+    function mergeRecipes(remoteRecipes, localRecipes) {
+        const map = new Map();
+        [...remoteRecipes, ...localRecipes].forEach(recipe => {
+            const normalized = normalizeRecipe(recipe);
+            if (normalized) {
+                map.set(normalized.id, normalized);
+            }
+        });
+        return Array.from(map.values());
+    }
+
+    function getRecipeDomId(recipeId) {
+        return encodeURIComponent(String(recipeId || ''));
+    }
 
     function openRecipePanel() {
         document.getElementById('recipePanel').classList.add('open');
@@ -4222,7 +4284,31 @@
         if (submitBtn) {
             submitBtn.disabled = true;
         }
+        const localRecipeId = `recipe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+        const localRecipe = normalizeRecipe({
+            id: localRecipeId,
+            username,
+            email,
+            mainTitle,
+            subTitle,
+            prepTime,
+            servings,
+            ingredientsJson: JSON.stringify(ingredients),
+            instructionsJson: JSON.stringify(instructions),
+            commentsJson: '[]',
+            likes: 0,
+            date: new Date().toISOString(),
+            isLocalOnly: true
+        });
+
+        const localRecipes = getLocalRecipes();
+        localRecipes.unshift(localRecipe);
+        saveLocalRecipes(localRecipes);
+        allRecipes = mergeRecipes(allRecipes, localRecipes);
         closeRecipePanel();
+        renderRecommendedRecipes();
+        renderRecipes();
 
         try {
             const response = await fetch(SCRIPT_URL, {
@@ -4237,14 +4323,14 @@
 
             if (result.status === 'success' || result.success) {
                 showToast('המתכון נוסף בהצלחה!');
-                // Reload recipes
+                saveLocalRecipes(getLocalRecipes().filter(recipe => recipe.id !== localRecipeId));
                 await loadRecipes();
             } else {
                 showToast(result.message || 'שגיאה בהוספת המתכון');
             }
         } catch (error) {
             console.error('Error submitting recipe:', error);
-            showToast('שגיאה בשליחת המתכון. נסה שנית.');
+            showToast('המתכון נשמר מקומית. כשתהיה תקשורת תקינה הוא יישלח לשרת.');
         } finally {
             isSubmittingRecipe = false;
             if (submitBtn) {
@@ -4314,13 +4400,19 @@
     }
 
     async function loadRecipes() {
+        const localRecipes = getLocalRecipes().map(normalizeRecipe).filter(Boolean);
         try {
             const res = await fetch(SCRIPT_URL + '?action=recipeList');
-            allRecipes = await res.json();
+            const remoteRecipesRaw = await res.json();
+            const remoteRecipes = Array.isArray(remoteRecipesRaw) ? remoteRecipesRaw.map(normalizeRecipe).filter(Boolean) : [];
+            allRecipes = mergeRecipes(remoteRecipes, localRecipes);
             renderRecommendedRecipes();
             renderRecipes();
         } catch (error) {
             console.error('Error loading recipes:', error);
+            allRecipes = localRecipes;
+            renderRecommendedRecipes();
+            renderRecipes();
         }
     }
 
@@ -4349,24 +4441,26 @@
         const sortedRecipes = [...allRecipes].sort((a, b) => new Date(b.date) - new Date(a.date));
 
         sortedRecipes.forEach(recipe => {
-            const ingredients = JSON.parse(recipe.ingredientsJson || '[]');
-            const instructions = JSON.parse(recipe.instructionsJson || '[]');
+            const ingredients = parseJsonArray(recipe.ingredientsJson || recipe.ingredients);
+            const instructions = parseJsonArray(recipe.instructionsJson || recipe.instructions);
+            const comments = parseJsonArray(recipe.commentsJson || recipe.comments);
             const recipeDate = new Date(recipe.date);
             const recipeDateTime = recipeDate.toLocaleDateString('he-IL') + ' ' + recipeDate.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+            const recipeDomId = getRecipeDomId(recipe.id);
 
             container.innerHTML += `
                 <div class="recipe-card">
                     <div class="recipe-header">
-                        <h2 class="recipe-main-title">${recipe.mainTitle}</h2>
-                        <p class="recipe-sub-title">${recipe.subTitle || ''}</p>
+                        <h2 class="recipe-main-title">${escapeHtml(recipe.mainTitle)}</h2>
+                        <p class="recipe-sub-title">${escapeHtml(recipe.subTitle || '')}</p>
                         <div class="recipe-meta">
                             <span class="recipe-meta-item">
                                 <i class="fas fa-clock"></i>
-                                ${recipe.prepTime}
+                                ${escapeHtml(recipe.prepTime)}
                             </span>
                             <span class="recipe-meta-item">
                                 <i class="fas fa-users"></i>
-                                ${recipe.servings}
+                                ${escapeHtml(recipe.servings)}
                             </span>
                             <span class="recipe-meta-item">
                                 <i class="fas fa-calendar-alt"></i>
@@ -4382,7 +4476,7 @@
                         </h3>
                         <ul class="recipe-ingredients-list">
                             ${ingredients.map(ing => `
-                                <li>${ing.name} ${ing.amount ? '- ' + ing.amount : ''} ${ing.unit || ''}</li>
+                                <li>${escapeHtml(ing.name)} ${ing.amount ? '- ' + escapeHtml(ing.amount) : ''} ${escapeHtml(ing.unit || '')}</li>
                             `).join('')}
                         </ul>
                     </div>
@@ -4394,7 +4488,7 @@
                         </h3>
                         <ul class="recipe-instructions-list">
                             ${instructions.map((inst, idx) => `
-                                <li data-step="${idx + 1}">${inst}</li>
+                                <li data-step="${idx + 1}">${escapeHtml(inst)}</li>
                             `).join('')}
                         </ul>
                     </div>
@@ -4402,12 +4496,28 @@
                     <div class="recipe-footer">
                         <span class="recipe-author">
                             <i class="fas fa-user-circle" style="color: var(--accent);"></i>
-                            <strong>${recipe.username}</strong>
+                            <strong>${escapeHtml(recipe.username)}</strong>
                         </span>
                         <div class="recipe-actions">
-                            <button class="tab-btn" style="padding: 8px 18px; font-size: 0.9rem;" onclick="addRecipeLike('${recipe.id}')">
+                            <button class="tab-btn" style="padding: 8px 18px; font-size: 0.9rem;" onclick="addRecipeLike('${recipeDomId}')">
                                 <i class="fas fa-heart" style="color: #e74c3c;"></i> ${recipe.likes || 0}
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="recipe-section">
+                        <h3 class="recipe-section-title"><i class="fas fa-comments"></i> תגובות</h3>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            ${comments.length ? comments.map(comment => `
+                                <div style="background:rgba(0,0,0,0.04); border-radius:10px; padding:10px;">
+                                    <strong>${escapeHtml(comment.name || 'משתמש')}</strong>
+                                    <div style="margin-top:4px;">${escapeHtml(comment.text || '')}</div>
+                                </div>
+                            `).join('') : '<div style="color: var(--text-muted);">אין תגובות עדיין</div>'}
+                        </div>
+                        <div style="display:flex; gap:8px; margin-top:12px;">
+                            <input id="recipe-comment-${recipeDomId}" type="text" placeholder="כתבו תגובה למתכון..." style="flex:1;">
+                            <button class="tab-btn active" onclick="addRecipeComment('${recipeDomId}')">שליחה</button>
                         </div>
                     </div>
                 </div>
@@ -4415,7 +4525,22 @@
         });
     }
 
-    async function addRecipeLike(id) {
+    async function addRecipeLike(recipeDomId) {
+        const id = decodeURIComponent(recipeDomId);
+        if (hasLiked(`recipe-${id}`)) {
+            showToast('כבר עשית לייק למתכון הזה');
+            return;
+        }
+        markAsLiked(`recipe-${id}`);
+        const localRecipes = getLocalRecipes();
+        const localIndex = localRecipes.findIndex(recipe => recipe.id === id);
+        if (localIndex !== -1) {
+            localRecipes[localIndex].likes = Number(localRecipes[localIndex].likes || 0) + 1;
+            saveLocalRecipes(localRecipes);
+            allRecipes = mergeRecipes(allRecipes, localRecipes);
+            renderRecommendedRecipes();
+            renderRecipes();
+        }
         try {
             await fetch(SCRIPT_URL, {
                 method: 'POST',
@@ -4427,8 +4552,65 @@
             await loadRecipes();
         } catch (error) {
             console.error('Error liking recipe:', error);
-            showToast('שגיאה בשליחת הלייק. נסה שנית.');
+            if (localIndex === -1) {
+                const updatedLocalRecipes = getLocalRecipes();
+                const foundInMerged = allRecipes.find(recipe => recipe.id === id);
+                if (foundInMerged) {
+                    updatedLocalRecipes.push({ ...foundInMerged, likes: Number(foundInMerged.likes || 0) + 1 });
+                    saveLocalRecipes(updatedLocalRecipes);
+                    allRecipes = mergeRecipes(allRecipes, updatedLocalRecipes);
+                    renderRecommendedRecipes();
+                    renderRecipes();
+                }
+            }
+            showToast('הלייק נשמר מקומית.');
         }
+    }
+
+    async function addRecipeComment(recipeDomId) {
+        const id = decodeURIComponent(recipeDomId);
+        const input = document.getElementById(`recipe-comment-${recipeDomId}`);
+        if (!input) return;
+        const text = input.value.trim();
+        if (!text) return;
+
+        const currentUser = localStorage.getItem('currentUser');
+        let commenterName = currentUser;
+        if (!commenterName) {
+            commenterName = await showNameModal();
+            if (!commenterName) {
+                return;
+            }
+        }
+
+        const newComment = {
+            id: `comment-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: commenterName,
+            text,
+            date: new Date().toISOString()
+        };
+
+        const localRecipes = getLocalRecipes();
+        const existingLocalIndex = localRecipes.findIndex(recipe => recipe.id === id);
+        if (existingLocalIndex === -1) {
+            const baseRecipe = allRecipes.find(recipe => recipe.id === id);
+            if (baseRecipe) {
+                localRecipes.push({ ...baseRecipe });
+            }
+        }
+
+        const recipeIndex = localRecipes.findIndex(recipe => recipe.id === id);
+        if (recipeIndex === -1) return;
+        const comments = parseJsonArray(localRecipes[recipeIndex].commentsJson || localRecipes[recipeIndex].comments);
+        comments.push(newComment);
+        localRecipes[recipeIndex].commentsJson = JSON.stringify(comments);
+        saveLocalRecipes(localRecipes);
+        allRecipes = mergeRecipes(allRecipes, localRecipes);
+        input.value = '';
+        renderRecommendedRecipes();
+        renderRecipes();
+
+        showToast('התגובה נוספה למתכון');
     }
 
     // Load saved theme and sidebar state
