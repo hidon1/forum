@@ -1860,6 +1860,11 @@
             gap: 10px;
         }
 
+
+        .site-recipes-card {
+            display: none;
+        }
+
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after {
                 animation-duration: 0.01ms !important;
@@ -1896,34 +1901,51 @@
         }
 
         @media (max-width: 600px) {
+            header {
+                padding: 0.8rem 1rem 0.9rem;
+                padding-top: calc(0.9rem + env(safe-area-inset-top));
+            }
+
             header h1 {
-                font-size: 1.2rem;
+                font-size: 1.08rem;
+            }
+
+            header .subtitle {
+                font-size: 0.78rem;
+                margin-top: 0.12rem;
             }
             
             .header-content {
                 flex-direction: column;
                 text-align: center;
-                gap: 10px;
+                gap: 6px;
+                padding-left: 0;
+                align-items: stretch;
+                position: relative;
             }
             
             .header-text {
                 text-align: center;
+                margin-top: 0;
             }
             
             .header-controls {
                 flex-wrap: wrap;
                 justify-content: center;
-                margin: 10px 0;
+                margin: 4px 0 0;
+                gap: 8px;
             }
             
             .header-btn {
-                font-size: 0.8rem;
-                padding: 8px 14px;
-                height: 38px;
+                font-size: 0.72rem;
+                padding: 6px 11px;
+                height: 34px;
+                gap: 5px;
             }
             
             .search-box {
-                height: 38px;
+                height: 34px;
+                padding: 0 10px;
             }
             
             .search-container {
@@ -1931,35 +1953,45 @@
             }
             
             .search-box input {
-                width: 120px;
-            }
-            
-            .header-icon {
-                font-size: 1.8rem;
+                width: 108px;
+                font-size: 0.8rem;
             }
             
             .header-icon .logo-svg {
-                width: 60px;
-                height: 60px;
+                width: 54px;
+                height: 54px;
+            }
+
+            .header-icon {
+                position: fixed;
+                top: calc(8px + env(safe-area-inset-top));
+                right: calc(12px + env(safe-area-inset-right));
+                z-index: 1101;
             }
 
             .nav-tabs {
-                gap: 10px;
+                display: grid;
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+                gap: 8px;
+                padding: 14px 10px 12px;
+                max-height: 124px;
+                overflow: hidden;
             }
 
             .tab-btn {
-                padding: 12px 20px;
-                font-size: 0.9rem;
+                padding: 8px 6px;
+                font-size: 0.74rem;
+                justify-content: center;
             }
 
             .tab-btn .tab-icon {
-                width: 35px;
-                height: 35px;
+                width: 24px;
+                height: 24px;
             }
             
             .sidebar-toggle-btn {
-                top: 80px;
-                right: 10px;
+                top: calc(68px + env(safe-area-inset-top));
+                right: calc(18px + env(safe-area-inset-right));
                 width: 40px;
                 height: 40px;
             }
@@ -2009,11 +2041,11 @@
             }
 
             .main-layout {
-                padding: 24px 16px 30px;
+                padding: 10px 12px 24px;
             }
 
             .main-layout.sidebar-hidden {
-                padding-right: 16px;
+                padding-right: 12px;
             }
 
             .sidebar {
@@ -2025,21 +2057,24 @@
             }
 
             .sidebar-toggle-btn {
-                top: calc(70px + env(safe-area-inset-top));
-                right: calc(12px + env(safe-area-inset-right));
+                top: calc(68px + env(safe-area-inset-top));
+                right: calc(18px + env(safe-area-inset-right));
             }
 
             .user-display {
-                width: 100%;
+                width: auto;
                 justify-content: center;
-                flex-wrap: wrap;
-                height: auto;
-                padding: 8px 12px;
-                gap: 8px;
+                flex-wrap: nowrap;
+                height: 34px;
+                padding: 0 10px;
+                gap: 6px;
+                font-size: 0.75rem;
             }
 
             .logout-btn {
                 margin-right: 0;
+                padding: 4px 9px;
+                font-size: 0.7rem;
             }
 
             .modal {
@@ -2095,6 +2130,26 @@
             .reply-input-row button,
             .nested-reply-input button {
                 width: 100%;
+            }
+
+        }
+
+        @media (max-width: 950px) and (orientation: landscape) {
+            .info-modal {
+                align-items: flex-start;
+                padding: 10px;
+            }
+
+            .info-modal-content {
+                width: 100%;
+                max-height: calc(100vh - 20px);
+                border-radius: 16px;
+                padding: 20px;
+                overflow-y: auto;
+            }
+
+            .info-modal-header h2 {
+                font-size: 1.25rem;
             }
         }
     </style>
@@ -2166,7 +2221,7 @@
 <div class="main-layout sidebar-hidden" id="mainLayout">
     <aside class="sidebar hidden" id="sidebar">
         <!-- Recipes Accordion Card -->
-        <div class="sidebar-card">
+        <div class="sidebar-card site-recipes-card">
             <div class="accordion-header" onclick="toggleBanner(this)">
                 <div class="header-left">
                     <div class="icon-wrapper">
@@ -4307,7 +4362,6 @@
         saveLocalRecipes(localRecipes);
         allRecipes = mergeRecipes(allRecipes, localRecipes);
         closeRecipePanel();
-        renderRecommendedRecipes();
         renderRecipes();
 
         try {
@@ -4339,66 +4393,6 @@
         }
     }
 
-    function renderRecommendedRecipes() {
-        const recommendedContainer = document.getElementById('recommendedUserRecipes');
-        if (!recommendedContainer) return;
-
-        if (!allRecipes || allRecipes.length === 0) {
-            recommendedContainer.innerHTML = '';
-            return;
-        }
-
-        const sortedRecipes = [...allRecipes]
-            .sort((a, b) => new Date(b.date) - new Date(a.date))
-            .slice(0, 8);
-
-        recommendedContainer.innerHTML = `
-            <div class="recipe-section" style="margin-top: 18px;">
-                <h5 style="margin-bottom: 12px; color: var(--accent);">מתכונים מהקהילה</h5>
-                ${sortedRecipes.map(recipe => `
-                    <div class="recipe-card" onclick="toggleRecipe(this)">
-                        <div class="recipe-header" style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
-                            <div>
-                                <h4 style="margin-bottom: 4px;">${recipe.mainTitle || ''}</h4>
-                                <p class="recipe-desc" style="margin: 0;">${recipe.subTitle || ''}</p>
-                            </div>
-                            <div class="recipe-meta" style="display: flex; flex-direction: column; gap: 6px; margin: 0; text-align: right; white-space: nowrap;">
-                                <span><i class="fas fa-clock"></i> ${recipe.prepTime || '-'}</span>
-                                <span><i class="fas fa-users"></i> ${recipe.servings || '-'}</span>
-                            </div>
-                        </div>
-                        <div class="recipe-details">
-                            <div class="recipe-section">
-                                <h5><i class="fas fa-list"></i> מרכיבים</h5>
-                                <ul>
-                                    ${(() => {
-                                        const ingredients = JSON.parse(recipe.ingredientsJson || '[]');
-                                        if (!ingredients.length) {
-                                            return '<li>לא הוזנו מרכיבים</li>';
-                                        }
-                                        return ingredients.map(ing => `<li>${ing.name || ''} ${ing.amount ? '- ' + ing.amount : ''} ${ing.unit || ''}</li>`).join('');
-                                    })()}
-                                </ul>
-                            </div>
-                            <div class="recipe-section">
-                                <h5><i class="fas fa-tasks"></i> אופן ההכנה</h5>
-                                <ol>
-                                    ${(() => {
-                                        const instructions = JSON.parse(recipe.instructionsJson || '[]');
-                                        if (!instructions.length) {
-                                            return '<li>לא הוזן אופן הכנה</li>';
-                                        }
-                                        return instructions.map(inst => `<li>${inst}</li>`).join('');
-                                    })()}
-                                </ol>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-        `;
-    }
-
     async function loadRecipes() {
         const localRecipes = getLocalRecipes().map(normalizeRecipe).filter(Boolean);
         try {
@@ -4406,12 +4400,10 @@
             const remoteRecipesRaw = await res.json();
             const remoteRecipes = Array.isArray(remoteRecipesRaw) ? remoteRecipesRaw.map(normalizeRecipe).filter(Boolean) : [];
             allRecipes = mergeRecipes(remoteRecipes, localRecipes);
-            renderRecommendedRecipes();
             renderRecipes();
         } catch (error) {
             console.error('Error loading recipes:', error);
             allRecipes = localRecipes;
-            renderRecommendedRecipes();
             renderRecipes();
         }
     }
@@ -4538,7 +4530,6 @@
             localRecipes[localIndex].likes = Number(localRecipes[localIndex].likes || 0) + 1;
             saveLocalRecipes(localRecipes);
             allRecipes = mergeRecipes(allRecipes, localRecipes);
-            renderRecommendedRecipes();
             renderRecipes();
         }
         try {
@@ -4559,7 +4550,6 @@
                     updatedLocalRecipes.push({ ...foundInMerged, likes: Number(foundInMerged.likes || 0) + 1 });
                     saveLocalRecipes(updatedLocalRecipes);
                     allRecipes = mergeRecipes(allRecipes, updatedLocalRecipes);
-                    renderRecommendedRecipes();
                     renderRecipes();
                 }
             }
@@ -4607,7 +4597,6 @@
         saveLocalRecipes(localRecipes);
         allRecipes = mergeRecipes(allRecipes, localRecipes);
         input.value = '';
-        renderRecommendedRecipes();
         renderRecipes();
 
         showToast('התגובה נוספה למתכון');
