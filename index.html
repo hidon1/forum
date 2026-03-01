@@ -1145,6 +1145,17 @@
             word-break: break-word;
         }
 
+        .linkified-content a {
+            color: var(--primary);
+            text-decoration: underline;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .linkified-content a:hover {
+            color: var(--primary-dark);
+        }
+
         .nested-reply {
             margin-right: 30px;
             padding: 12px;
@@ -3786,12 +3797,12 @@
                         <span style="margin: 0 8px;">|</span>
                         <i class="fas fa-calendar-alt"></i> ${threadDateTime}
                     </small>
-                    <h3>${t.Subject}</h3>
-                    <p>${t.Content}</p>
+                    <h3>${escapeHtml(t.Subject)}</h3>
+                    <p class="linkified-content">${linkifyText(t.Content)}</p>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(0,0,0,0.05);">
                         <span style="display: flex; align-items: center; gap: 8px;">
                             <i class="fas fa-user-circle" style="color: var(--accent);"></i>
-                            מאת: <strong>${t.Name}</strong>
+                            מאת: <strong>${escapeHtml(t.Name)}</strong>
                             ${currentUser && currentUser === t.Name ? `<button class="delete-btn" onclick="event.stopPropagation(); deletePost('${t.ID}')"><i class="fas fa-trash"></i> מחק</button>` : ''}
                         </span>
                         <div style="display: flex; gap: 10px;">
@@ -3820,7 +3831,7 @@
                                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <i class="fas fa-user" style="color: var(--accent);"></i>
-                                        <strong>${r.Name}</strong>
+                                        <strong>${escapeHtml(r.Name)}</strong>
                                         <span style="color: var(--text-muted); font-size: 0.75rem; margin-right: 8px;">
                                             <i class="fas fa-clock" style="font-size: 0.7rem;"></i> ${replyDateTime}
                                         </span>
@@ -3835,7 +3846,7 @@
                                         </button>
                                     </div>
                                 </div>
-                                <p style="margin-right: 28px;">${r.Content}</p>
+                                <p class="linkified-content" style="margin-right: 28px;">${linkifyText(r.Content)}</p>
                                 <div id="reply-box-${t.ID}-${idx}" class="reply-to-reply-box">
                                     <div class="nested-reply-input" style="display: flex; gap: 8px;">
                                         <input type="text" id="nested-rep-in-${t.ID}-${idx}" placeholder="הגב לתגובה..." style="flex: 1; padding: 10px 14px; font-size: 0.9rem;">
@@ -4164,6 +4175,12 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    function linkifyText(text) {
+        const escaped = escapeHtml(text);
+        const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/gi;
+        return escaped.replace(urlRegex, (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
     }
 
     function parseJsonArray(value) {
